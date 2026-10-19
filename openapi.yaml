@@ -1,0 +1,253 @@
+openapi: 3.1.0
+info:
+  title: CrewClaro API
+  version: 0.7.0
+servers:
+  - url: https://api.crewclaro.dev/v1
+security:
+  - bearerAuth: []
+paths:
+  /projects:
+    get:
+      summary: List projects for the current user
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProjectPage" }
+    post:
+      summary: Create a project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateProject" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+  /projects/{id}/messages:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      summary: List messages, translated to the requested language
+      parameters:
+        - { name: lang, in: query, required: true, schema: { $ref: "#/components/schemas/Lang" } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessagePage" }
+    post:
+      summary: Send a message (translation happens asynchronously)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SendMessage" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Message" }
+  /projects/{id}/tasks:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      summary: List tasks
+      parameters:
+        - { name: trade, in: query, schema: { $ref: "#/components/schemas/Trade" } }
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/TaskStatus" } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaskPage" }
+    post:
+      summary: Create a task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateTask" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+  /tasks/{id}:
+    patch:
+      summary: Update a task
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateTask" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+  /subcontractors:
+    get:
+      summary: List subcontractors
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SubcontractorPage" }
+  /subcontractors/invite:
+    post:
+      summary: Invite a subcontractor by SMS or email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InviteSubcontractor" }
+      responses:
+        "201":
+          description: Invited
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Subcontractor" }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  schemas:
+    Lang: { type: string, enum: [en, es, pt, pl] }
+    Trade: { type: string, enum: [general, electrical, plumbing, drywall, framing, hvac, painting, roofing] }
+    TaskStatus: { type: string, enum: [todo, in_progress, blocked, done] }
+    LocalizedText:
+      type: object
+      additionalProperties: { type: string }
+      example: { en: "Hang drywall – 2nd floor", es: "Colgar tablaroca – 2do piso" }
+    Project:
+      type: object
+      required: [id, name, address, createdAt]
+      properties:
+        id: { type: string, example: prj_123 }
+        name: { type: string, example: "Maple St. Kitchen Remodel" }
+        address: { type: string }
+        memberCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+    CreateProject:
+      type: object
+      required: [name, address]
+      properties:
+        name: { type: string }
+        address: { type: string }
+    UserRef:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        lang: { $ref: "#/components/schemas/Lang" }
+    Message:
+      type: object
+      required: [id, projectId, sender, original, translations, translationStatus, createdAt]
+      properties:
+        id: { type: string, example: msg_8f2k }
+        projectId: { type: string }
+        sender: { $ref: "#/components/schemas/UserRef" }
+        original:
+          type: object
+          properties:
+            lang: { $ref: "#/components/schemas/Lang" }
+            text: { type: string }
+        translations: { $ref: "#/components/schemas/LocalizedText" }
+        translationStatus: { type: string, enum: [pending, done, failed] }
+        attachments: { type: array, items: { type: string, format: uri } }
+        createdAt: { type: string, format: date-time }
+    SendMessage:
+      type: object
+      required: [body]
+      properties:
+        body: { type: string, maxLength: 4000 }
+        attachments: { type: array, items: { type: string, format: uri } }
+    Task:
+      type: object
+      required: [id, projectId, title, trade, status, photos]
+      properties:
+        id: { type: string, example: tsk_77 }
+        projectId: { type: string }
+        title: { $ref: "#/components/schemas/LocalizedText" }
+        trade: { $ref: "#/components/schemas/Trade" }
+        status: { $ref: "#/components/schemas/TaskStatus" }
+        assignee:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string }
+            company: { type: string }
+        dueDate: { type: string, format: date }
+        photos: { type: array, items: { type: string, format: uri } }
+    CreateTask:
+      type: object
+      required: [title, trade]
+      properties:
+        title: { type: string, description: "Written in the creator's language; translated server-side" }
+        trade: { $ref: "#/components/schemas/Trade" }
+        assigneeId: { type: string }
+        dueDate: { type: string, format: date }
+    UpdateTask:
+      type: object
+      properties:
+        status: { $ref: "#/components/schemas/TaskStatus" }
+        assigneeId: { type: string }
+        dueDate: { type: string, format: date }
+    Subcontractor:
+      type: object
+      required: [id, company, trade, preferredLang, projectIds, compliance]
+      properties:
+        id: { type: string, example: sub_9 }
+        company: { type: string, example: "Ramos Drywall LLC" }
+        contact: { type: string, description: "E.164 phone or email" }
+        trade: { $ref: "#/components/schemas/Trade" }
+        preferredLang: { $ref: "#/components/schemas/Lang" }
+        projectIds: { type: array, items: { type: string } }
+        compliance:
+          type: object
+          properties:
+            insuranceOnFile: { type: boolean }
+            licenseExpiresAt: { type: string, format: date, nullable: true }
+    InviteSubcontractor:
+      type: object
+      required: [company, contact, trade, lang]
+      properties:
+        company: { type: string }
+        contact: { type: string }
+        trade: { $ref: "#/components/schemas/Trade" }
+        lang: { $ref: "#/components/schemas/Lang" }
+        projectId: { type: string }
+    ProjectPage:
+      type: object
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/Project" } }
+        nextCursor: { type: string, nullable: true }
+    MessagePage:
+      type: object
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/Message" } }
+        nextCursor: { type: string, nullable: true }
+    TaskPage:
+      type: object
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/Task" } }
+        nextCursor: { type: string, nullable: true }
+    SubcontractorPage:
+      type: object
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/Subcontractor" } }
+        nextCursor: { type: string, nullable: true }

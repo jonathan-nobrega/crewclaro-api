@@ -1,0 +1,74 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String    @id @default(cuid())
+  name      String
+  lang      String    @default("en")
+  messages  Message[]
+  members   ProjectMember[]
+}
+
+model Project {
+  id        String          @id @default(cuid())
+  name      String
+  address   String
+  createdAt DateTime        @default(now())
+  members   ProjectMember[]
+  messages  Message[]
+  tasks     Task[]
+}
+
+model ProjectMember {
+  projectId String
+  userId    String
+  role      String  @default("crew") // owner | foreman | crew
+  project   Project @relation(fields: [projectId], references: [id])
+  user      User    @relation(fields: [userId], references: [id])
+  @@id([projectId, userId])
+}
+
+model Message {
+  id                String   @id @default(cuid())
+  projectId         String
+  senderId          String
+  originalLang      String
+  originalText      String
+  translations      Json     @default("{}")
+  translationStatus String   @default("pending")
+  attachments       String[]
+  createdAt         DateTime @default(now())
+  project           Project  @relation(fields: [projectId], references: [id])
+  sender            User     @relation(fields: [senderId], references: [id])
+  @@index([projectId, createdAt])
+}
+
+model Task {
+  id           String         @id @default(cuid())
+  projectId    String
+  title        Json
+  trade        String
+  status       String         @default("todo")
+  assigneeId   String?
+  dueDate      DateTime?
+  photos       String[]
+  project      Project        @relation(fields: [projectId], references: [id])
+  assignee     Subcontractor? @relation(fields: [assigneeId], references: [id])
+}
+
+model Subcontractor {
+  id               String    @id @default(cuid())
+  company          String
+  contact          String
+  trade            String
+  preferredLang    String
+  insuranceOnFile  Boolean   @default(false)
+  licenseExpiresAt DateTime?
+  tasks            Task[]
+}
